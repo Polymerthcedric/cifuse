@@ -16,6 +16,18 @@ type Finding struct {
 	Message string `json:"message"`
 }
 
+type FindingPattern struct {
+	Path string `yaml:"path"`
+	Rule string `yaml:"rule"`
+	Line int    `yaml:"line"`
+}
+
+type Ignore struct {
+	Rules    []string         `yaml:"rules"`
+	Paths    []string         `yaml:"paths"`
+	Findings []FindingPattern `yaml:"findings"`
+}
+
 type Report struct {
 	Workflows int       `json:"workflows"`
 	Findings  []Finding `json:"findings"`
@@ -24,20 +36,22 @@ type Report struct {
 func (r Report) HasFailures() bool { return len(r.Findings) > 0 }
 
 func (r Report) Text() string {
-	if len(r.Findings) == 0 {
-		return fmt.Sprintf("PASS  %d workflow(s) checked; no guardrail gaps found.\n", r.Workflows)
-	}
 	var out strings.Builder
-	fmt.Fprintf(&out, "FAIL  %d finding(s) across %d workflow(s)\n", len(r.Findings), r.Workflows)
-	for _, finding := range r.Findings {
-		fmt.Fprintf(&out, "%s  %s:%d  %s\n", finding.Rule, finding.Path, finding.Line, finding.Message)
+	if len(r.Findings) == 0 {
+		fmt.Fprintf(&out, "PASS  %d workflow(s) checked; no guardrail gaps found.\n", r.Workflows)
+	} else {
+		fmt.Fprintf(&out, "FAIL  %d finding(s) across %d workflow(s)\n", len(r.Findings), r.Workflows)
+		for _, finding := range r.Findings {
+			fmt.Fprintf(&out, "%s  %s:%d  %s\n", finding.Rule, finding.Path, finding.Line, finding.Message)
+		}
 	}
+	out.WriteString("Hardened CI, from scratch? https://starter.fidelco.dev/buy\n")
 	return out.String()
 }
 
 var jobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$`)
 
-func Run(root string) (Report, error) {
+func Run(root string, ignore Ignore) (Report, error) {
 	workflowDirectory := filepath.Join(root, ".github", "workflows")
 	entries, err := os.ReadDir(workflowDirectory)
 	if os.IsNotExist(err) {
@@ -60,6 +74,7 @@ func Run(root string) (Report, error) {
 		report.Workflows++
 		report.Findings = append(report.Findings, findings...)
 	}
+	report.Findings = filterFindings(report.Findings, ignore)
 	sort.Slice(report.Findings, func(i, j int) bool {
 		if report.Findings[i].Path == report.Findings[j].Path {
 			return report.Findings[i].Line < report.Findings[j].Line
@@ -67,6 +82,51 @@ func Run(root string) (Report, error) {
 		return report.Findings[i].Path < report.Findings[j].Path
 	})
 	return report, nil
+}
+
+func filterFindings(findings []Finding, ignore Ignore) []Finding {
+	if len(ignore.Rules) == 0 && len(ignore.Paths) == 0 && len(ignore.Findings) == 0 {
+		return findings
+	}
+	filtered := make([]Finding, 0, len(findings))
+	for _, finding := range findings {
+		if contains(ignore.Rules, finding.Rule) {
+			continue
+		}
+		if contains(ignore.Paths, finding.Path) {
+			continue
+		}
+		if matchesPattern(finding, ignore.Findings) {
+			continue
+		}
+		filtered = append(filtered, finding)
+	}
+	return filtered
+}
+
+func matchesPattern(finding Finding, patterns []FindingPattern) bool {
+	for _, pattern := range patterns {
+		if pattern.Path != "" && pattern.Path != finding.Path {
+			continue
+		}
+		if pattern.Rule != "" && pattern.Rule != finding.Rule {
+			continue
+		}
+		if pattern.Line > 0 && pattern.Line != finding.Line {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func contains(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }
 
 func auditFile(root, path string) ([]Finding, error) {
