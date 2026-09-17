@@ -14,7 +14,7 @@ const WorkflowName = "cifuse.yml"
 // docs never drift from what cifuse itself would recommend.
 const pinnedVersion = "v0.2.0"
 
-const workflow = `name: cifuse
+const workflowTemplate = `name: cifuse
 
 on:
   pull_request:
@@ -38,7 +38,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install cifuse
-        run: curl -fsSL https://raw.githubusercontent.com/Polymerthcedric/cifuse/main/scripts/install.sh | bash -s -- -v v0.2.0
+        run: curl -fsSL https://raw.githubusercontent.com/Polymerthcedric/cifuse/main/scripts/install.sh | bash -s -- -v %s
       - name: Audit workflows
         run: "$HOME/.local/bin/cifuse" audit --format sarif . > cifuse.sarif
       - name: Upload SARIF to code scanning
@@ -46,6 +46,10 @@ jobs:
         with:
           sarif_file: cifuse.sarif
 `
+
+func workflow() string {
+	return fmt.Sprintf(workflowTemplate, pinnedVersion)
+}
 
 const configTemplate = `# cifuse configuration (https://github.com/Polymerthcedric/cifuse)
 # ignore:
@@ -71,7 +75,7 @@ func Generate(root string, force bool) ([]string, error) {
 	if err := os.MkdirAll(workflowsDir, 0o755); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(workflowPath, []byte(workflow), 0o644); err != nil {
+	if err := os.WriteFile(workflowPath, []byte(workflow()), 0o644); err != nil {
 		return nil, err
 	}
 	created = append(created, workflowPath)
