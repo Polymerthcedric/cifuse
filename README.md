@@ -2,16 +2,16 @@
 
 Guard your GitHub Actions before they cost you CI minutes.
 
-`cifuse` reads your `.github/workflows` and flags the configuration gaps that quietly waste build time and leave the default GitHub token broader than it should be:
+`cifuse` checks the workflows in `.github/workflows` and reports a few common gaps that can waste CI time or grant GitHub Actions more access than a job needs:
 
 - **concurrency** that lets duplicate runs pile up on every push;
 - **no declared default permissions**, so jobs run with an over-privileged token;
 - **jobs without `timeout-minutes`**, so one stalled step can hang the queue; and
-- **`permissions: write-all`**, a write-your-own-supply-chain smell.
+- **`permissions: write-all`**, which grants more access than most workflows need.
 
 It is a local-first, single-binary linter. No daemon, no SaaS, no telemetry.
 
-## Get started in under two minutes
+## Install and run
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Polymerthcedric/cifuse/main/scripts/install.sh | bash
@@ -46,7 +46,7 @@ go install github.com/Polymerthcedric/cifuse/cmd/cifuse@v0.2.0
 
 ## Run it every PR
 
-`cifuse init` scaffolds a self-checking workflow that audits your workflows on every pull request and uploads the results as GitHub code-scanning alerts:
+`cifuse init` adds a workflow that checks your workflows on pushes and pull requests. It uploads SARIF results to GitHub code scanning:
 
 ```sh
 cifuse init
@@ -93,9 +93,9 @@ ignore:
 
 Binaries are static (`CGO_ENABLED=0`), so they run anywhere without dependencies.
 
-## Speedrunning the rest of CI hardening
+## Need an application starter too?
 
-`cifuse` covers the workflow-file layer of your guardrails. If you want the whole stack — CI in place, rate limits, auth, payments, observability — already wired as a boring, defensible starting point, that is exactly what the [DevSecOps Starter](https://starter.fidelco.dev/buy) is: a hardened Next.js foundation where these choices are made for you, not left as a checklist.
+`cifuse` checks GitHub Actions workflow files. It does not configure application security. The separate [DevSecOps Starter](https://starter.fidelco.dev/buy) includes a Next.js example with rate limiting, sessions, and a deployment workflow.
 
 ## License
 

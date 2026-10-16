@@ -167,9 +167,9 @@ jobs:
 	}
 }
 
-func TestTextOutputHasCTALine(t *testing.T) {
+func TestTextOutputDoesNotIncludeMarketingCTA(t *testing.T) {
 	report := Report{Workflows: 1, Findings: []Finding{{Rule: "CF001", Path: "x.yml", Line: 1, Message: "m"}}}
-	if text := report.Text(); !strings.Contains(text, "starter.fidelco.dev/buy") {
-		t.Fatalf("text output should point at the starter: %q", text)
+	if text := report.Text(); strings.Contains(text, "starter.fidelco.dev/buy") {
+		t.Fatalf("audit output should not include a product promotion: %q", text)
 	}
 }

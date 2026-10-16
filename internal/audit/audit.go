@@ -45,7 +45,6 @@ func (r Report) Text() string {
 			fmt.Fprintf(&out, "%s  %s:%d  %s\n", finding.Rule, finding.Path, finding.Line, finding.Message)
 		}
 	}
-	out.WriteString("Hardened CI, from scratch? https://starter.fidelco.dev/buy\n")
 	return out.String()
 }
 
