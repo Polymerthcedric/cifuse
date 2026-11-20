@@ -42,7 +42,7 @@ jobs:
       - name: Audit workflows
         run: "$HOME/.local/bin/cifuse" audit --format sarif . > cifuse.sarif
       - name: Upload SARIF to code scanning
-        uses: github/codeql-action/c20e34f438d671fc35777cc9820dd7adf8252874 # v3
+        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3
         with:
           sarif_file: cifuse.sarif
 `

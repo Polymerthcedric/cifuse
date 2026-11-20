@@ -52,7 +52,7 @@ go install github.com/Polymerthcedric/cifuse/cmd/cifuse@v0.2.0
 cifuse init
 ```
 
-It writes `.github/workflows/cifuse.yml` and a `.cifuserc.yml` for your exclusions. The generated workflow pins its actions to immutable commit SHAs — the same discipline cifuse audits — and runs `cifuse --format sarif`, so findings surface in the **Security → Code scanning** tab.
+It writes `.github/workflows/cifuse.yml` and a `.cifuserc.yml` for your exclusions. The generated workflow pins its actions to immutable commit SHAs — the same discipline cifuse audits — and runs `cifuse audit --format sarif`, so findings surface in the **Security → Code scanning** tab.
 
 ## Formats
 
@@ -87,15 +87,15 @@ ignore:
 | Method | Command |
 | --- | --- |
 | Install script | `curl -fsSL https://raw.githubusercontent.com/Polymerthcedric/cifuse/main/scripts/install.sh \| bash` |
-| Install script, pinned | `curl -fsSL ... \| bash -s -- -v v0.2.0` |
+| Install script, pinned | `curl -fsSL https://raw.githubusercontent.com/Polymerthcedric/cifuse/main/scripts/install.sh \| bash -s -- -v v0.2.0` |
 | Go module | `go install github.com/Polymerthcedric/cifuse/cmd/cifuse@v0.2.0` |
 | GitHub Releases | linux / darwin / windows × amd64 / arm64 tarballs with `checksums.txt` |
 
 Binaries are static (`CGO_ENABLED=0`), so they run anywhere without dependencies.
 
-## Need an application starter too?
+## Need an application example too?
 
-`cifuse` checks GitHub Actions workflow files. It does not configure application security. The separate [DevSecOps Starter](https://starter.fidelco.dev/buy) includes a Next.js example with rate limiting, sessions, and a deployment workflow.
+`cifuse` checks GitHub Actions workflow files; it does not configure application security. The open-source [DevSecOps Starter](https://github.com/Polymerthcedric/nextjs-devsecops-starter) has a Next.js example with rate limiting, sessions, and a deployment workflow.
 
 ## License
 
