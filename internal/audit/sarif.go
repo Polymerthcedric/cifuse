@@ -14,6 +14,7 @@ var ruleDocs = map[string]struct {
 	"CF003": {"missing-job-timeout", "A job has no timeout-minutes cap, so a stalled run can hang indefinitely."},
 	"CF004": {"write-all-permissions", "permissions: write-all grants a broader token than the job needs."},
 	"CF005": {"empty-jobs", "The jobs: key contains no jobs, so the workflow does nothing."},
+	"CF006": {"unpinned-action", "An action or reusable workflow uses a mutable ref instead of an immutable 40-character commit SHA."},
 }
 
 type sarifDocument struct {

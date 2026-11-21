@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,5 +172,138 @@ func TestTextOutputDoesNotIncludeMarketingCTA(t *testing.T) {
 	report := Report{Workflows: 1, Findings: []Finding{{Rule: "CF001", Path: "x.yml", Line: 1, Message: "m"}}}
 	if text := report.Text(); strings.Contains(text, "starter.fidelco.dev/buy") {
 		t.Fatalf("audit output should not include a product promotion: %q", text)
+	}
+}
+
+// workflowWithUses puts the uses line at line 13 in an otherwise clean workflow.
+func workflowWithUses(usesLine string) string {
+	return "name: test\npermissions:\n  contents: read\nconcurrency:\n  group: x\n  cancel-in-progress: true\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps:\n" + usesLine + "\n"
+}
+
+func cf006Findings(findings []Finding) []Finding {
+	var matched []Finding
+	for _, finding := range findings {
+		if finding.Rule == "CF006" {
+			matched = append(matched, finding)
+		}
+	}
+	return matched
+}
+
+func TestRunCF006ActionPinning(t *testing.T) {
+	const sha = "11d5960a326750d5838078e36cf38b85af677262"
+	tests := []struct {
+		name       string
+		usesLine   string
+		wantAction string // empty means no CF006 finding is expected
+	}{
+		{"unpinned tag", `      - uses: actions/checkout@v4`, "actions/checkout@v4"},
+		{"branch ref with comment", `      - uses: actions/checkout@main # follow main`, "actions/checkout@main"},
+		{"pinned sha", `      - uses: actions/checkout@` + sha + ` # v4`, ""},
+		{"local action", `      - uses: ./local/action`, ""},
+		{"local reusable workflow", `      - uses: ./.github/workflows/reusable.yml`, ""},
+		{"docker action", `      - uses: docker://alpine:3.19`, ""},
+		{"docker digest", `      - uses: docker://alpine@sha256:abc123`, ""},
+		{"no ref", `      - uses: actions/checkout`, ""},
+		{"double quoted tag", `      - uses: "actions/checkout@v4" # v4`, "actions/checkout@v4"},
+		{"single quoted tag", `      - uses: 'actions/checkout@v4'`, "actions/checkout@v4"},
+		{"quoted docker action", `      - uses: 'docker://alpine:3.19'`, ""},
+		{"reusable workflow tag", `      - uses: owner/repo/.github/workflows/reusable.yml@v1`, "owner/repo/.github/workflows/reusable.yml@v1"},
+		{"reusable workflow sha", `      - uses: owner/repo/.github/workflows/reusable.yml@` + sha, ""},
+		{"uppercase sha", `      - uses: actions/checkout@` + strings.ToUpper(sha), "actions/checkout@" + strings.ToUpper(sha)},
+		{"short sha", `      - uses: actions/checkout@` + sha[:39], "actions/checkout@" + sha[:39]},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeWorkflow(t, root, "test.yml", workflowWithUses(tt.usesLine))
+			report, err := Run(root, Ignore{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			findings := cf006Findings(report.Findings)
+			if tt.wantAction == "" {
+				if len(findings) != 0 {
+					t.Fatalf("unexpected CF006 findings: %#v", findings)
+				}
+				return
+			}
+			if len(findings) != 1 {
+				t.Fatalf("got %d CF006 findings, want 1: %#v", len(findings), report.Findings)
+			}
+			finding := findings[0]
+			if finding.Path != ".github/workflows/test.yml" || finding.Line != 13 {
+				t.Fatalf("got location %s:%d, want .github/workflows/test.yml:13", finding.Path, finding.Line)
+			}
+			wantMessage := fmt.Sprintf("pin action %s to a 40-character commit SHA", tt.wantAction)
+			if finding.Message != wantMessage {
+				t.Fatalf("got message %q, want %q", finding.Message, wantMessage)
+			}
+		})
+	}
+}
+
+func TestRunCF006ChecksReusableWorkflowFiles(t *testing.T) {
+	root := t.TempDir()
+	writeWorkflow(t, root, "reusable.yml", "name: reusable\non:\n  workflow_call:\npermissions:\n  contents: read\nconcurrency:\n  group: x\n  cancel-in-progress: true\njobs:\n  test:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps:\n      - uses: owner/repo/.github/workflows/inner.yml@v1\n")
+	report, err := Run(root, Ignore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	findings := cf006Findings(report.Findings)
+	if len(findings) != 1 {
+		t.Fatalf("got %d CF006 findings, want 1: %#v", len(findings), report.Findings)
+	}
+	if findings[0].Path != ".github/workflows/reusable.yml" || findings[0].Line != 14 {
+		t.Fatalf("got location %s:%d, want .github/workflows/reusable.yml:14", findings[0].Path, findings[0].Line)
+	}
+}
+
+func TestRunIgnoreCF006(t *testing.T) {
+	root := t.TempDir()
+	writeWorkflow(t, root, "test.yml", workflowWithUses("      - uses: actions/checkout@v4"))
+	report, err := Run(root, Ignore{Rules: []string{"CF006"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.HasFailures() {
+		t.Fatalf("ignore.Rules should suppress CF006, got %#v", report.Findings)
+	}
+}
+
+func TestSARIFIncludesCF006RuleDoc(t *testing.T) {
+	report := Report{Findings: []Finding{{Rule: "CF006", Path: ".github/workflows/test.yml", Line: 13, Message: "pin action actions/checkout@v4 to a 40-character commit SHA"}}}
+	out, err := report.SARIF("v0.2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Runs []struct {
+			Tool struct {
+				Driver struct {
+					Rules []struct {
+						ID               string `json:"id"`
+						Name             string `json:"name"`
+						ShortDescription struct {
+							Text string `json:"text"`
+						} `json:"shortDescription"`
+						FullDescription struct {
+							Text string `json:"text"`
+						} `json:"fullDescription"`
+					} `json:"rules"`
+				} `json:"driver"`
+			} `json:"tool"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Runs) != 1 || len(doc.Runs[0].Tool.Driver.Rules) != 1 {
+		t.Fatalf("unexpected SARIF rules: %s", string(out))
+	}
+	rule := doc.Runs[0].Tool.Driver.Rules[0]
+	if rule.ID != "CF006" || rule.Name == "" || rule.ShortDescription.Text == "" || rule.FullDescription.Text == "" {
+		t.Fatalf("incomplete CF006 rule doc: %s", string(out))
 	}
 }

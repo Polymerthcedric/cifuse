@@ -50,6 +50,13 @@ func (r Report) Text() string {
 
 var jobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$`)
 
+// usesAction matches "uses: owner/repo@ref" (with optional indentation, leading
+// dash, quotes, and trailing inline comment). It captures the action reference.
+var usesAction = regexp.MustCompile(`^\s*-?\s*uses:\s+([^#\s]+)`)
+
+// shaRef matches a 40-character lowercase hex SHA.
+var shaRef = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 func Run(root string, ignore Ignore) (Report, error) {
 	workflowDirectory := filepath.Join(root, ".github", "workflows")
 	entries, err := os.ReadDir(workflowDirectory)
@@ -166,6 +173,15 @@ func auditFile(root, path string) ([]Finding, error) {
 		}
 		if strings.Contains(trimmed, "permissions: write-all") {
 			findings = append(findings, Finding{"CF004", relativePath, lineNumber, "avoid permissions: write-all; grant only the scopes this job needs"})
+		}
+		if match := usesAction.FindStringSubmatch(raw); match != nil {
+			action := strings.Trim(match[1], `"'`)
+			if !strings.HasPrefix(action, "./") && !strings.HasPrefix(action, "docker://") {
+				parts := strings.SplitN(action, "@", 2)
+				if len(parts) == 2 && parts[0] != "" && !shaRef.MatchString(parts[1]) {
+					findings = append(findings, Finding{"CF006", relativePath, lineNumber, fmt.Sprintf("pin action %s to a 40-character commit SHA", action)})
+				}
+			}
 		}
 		if inJobs {
 			if match := jobHeader.FindStringSubmatch(raw); match != nil && match[1] != "permissions" && match[1] != "concurrency" {
