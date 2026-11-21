@@ -6,8 +6,10 @@ Guard your GitHub Actions before they cost you CI minutes.
 
 - **concurrency** that lets duplicate runs pile up on every push;
 - **no declared default permissions**, so jobs run with an over-privileged token;
-- **jobs without `timeout-minutes`**, so one stalled step can hang the queue; and
-- **`permissions: write-all`**, which grants more access than most workflows need.
+- **jobs without `timeout-minutes`**, so one stalled step can hang the queue;
+- **`permissions: write-all`**, which grants more access than most workflows need;
+- **workflows with no jobs**, so a silently empty file does nothing; and
+- **`uses:` refs that are not commit SHAs**, so the code you audited can change before the next run.
 
 It is a local-first, single-binary linter. No daemon, no SaaS, no telemetry.
 

@@ -207,10 +207,12 @@ func TestRunCF006ActionPinning(t *testing.T) {
 		{"no ref", `      - uses: actions/checkout`, ""},
 		{"double quoted tag", `      - uses: "actions/checkout@v4" # v4`, "actions/checkout@v4"},
 		{"single quoted tag", `      - uses: 'actions/checkout@v4'`, "actions/checkout@v4"},
+		{"quoted key", `      - "uses": actions/checkout@v4`, "actions/checkout@v4"},
+		{"space before colon", `      - uses : actions/checkout@v4`, "actions/checkout@v4"},
 		{"quoted docker action", `      - uses: 'docker://alpine:3.19'`, ""},
 		{"reusable workflow tag", `      - uses: owner/repo/.github/workflows/reusable.yml@v1`, "owner/repo/.github/workflows/reusable.yml@v1"},
 		{"reusable workflow sha", `      - uses: owner/repo/.github/workflows/reusable.yml@` + sha, ""},
-		{"uppercase sha", `      - uses: actions/checkout@` + strings.ToUpper(sha), "actions/checkout@" + strings.ToUpper(sha)},
+		{"uppercase sha", `      - uses: actions/checkout@` + strings.ToUpper(sha), ""},
 		{"short sha", `      - uses: actions/checkout@` + sha[:39], "actions/checkout@" + sha[:39]},
 	}
 

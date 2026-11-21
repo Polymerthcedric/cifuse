@@ -50,12 +50,13 @@ func (r Report) Text() string {
 
 var jobHeader = regexp.MustCompile(`^  ([A-Za-z0-9_-]+):\s*(?:#.*)?$`)
 
-// usesAction matches "uses: owner/repo@ref" (with optional indentation, leading
-// dash, quotes, and trailing inline comment). It captures the action reference.
-var usesAction = regexp.MustCompile(`^\s*-?\s*uses:\s+([^#\s]+)`)
+// usesAction matches "uses: owner/repo@ref" (with optional indentation,
+// leading dash, quoted key or value, and trailing inline comment). It captures
+// the action reference.
+var usesAction = regexp.MustCompile(`^\s*-?\s*["']?uses["']?\s*:\s+([^#\s]+)`)
 
-// shaRef matches a 40-character lowercase hex SHA.
-var shaRef = regexp.MustCompile(`^[0-9a-f]{40}$`)
+// shaRef matches a 40-character hex SHA. Git accepts uppercase hex too.
+var shaRef = regexp.MustCompile(`(?i)^[0-9a-f]{40}$`)
 
 func Run(root string, ignore Ignore) (Report, error) {
 	workflowDirectory := filepath.Join(root, ".github", "workflows")
