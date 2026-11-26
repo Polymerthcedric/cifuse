@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Finding struct {
@@ -145,9 +147,29 @@ func auditFile(root, path string) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
+	var workflow map[string]any
+	if err := yaml.Unmarshal(content, &workflow); err != nil {
+		return nil, fmt.Errorf("parse workflow %s: %w", relativePath, err)
+	}
+	concurrency, _ := workflow["concurrency"].(map[string]any)
+	group, _ := concurrency["group"].(string)
+	cancelInProgress, _ := concurrency["cancel-in-progress"].(bool)
+	workflowConcurrency := strings.TrimSpace(group) != "" && cancelInProgress
+
+	permissions, hasPermissions := workflow["permissions"].(map[string]any)
+	workflowPermissions := hasPermissions
+	if contents, ok := permissions["contents"].(string); !ok || contents != "read" {
+		workflowPermissions = false
+	}
+	for _, permission := range permissions {
+		value, ok := permission.(string)
+		if !ok || (value != "read" && value != "none") {
+			workflowPermissions = false
+			break
+		}
+	}
+
 	lines := strings.Split(string(content), "\n")
-	workflowConcurrency := false
-	workflowPermissions := false
 	inJobs := false
 	jobsLine := 0
 	var currentJob *job
@@ -163,14 +185,6 @@ func auditFile(root, path string) ([]Finding, error) {
 		if raw == "jobs:" {
 			inJobs, jobsLine = true, lineNumber
 			continue
-		}
-		if !inJobs {
-			if raw == "concurrency:" || strings.HasPrefix(raw, "concurrency:") {
-				workflowConcurrency = true
-			}
-			if raw == "permissions:" || strings.HasPrefix(raw, "permissions:") {
-				workflowPermissions = true
-			}
 		}
 		if strings.Contains(trimmed, "permissions: write-all") {
 			findings = append(findings, Finding{"CF004", relativePath, lineNumber, "avoid permissions: write-all; grant only the scopes this job needs"})

@@ -45,6 +45,24 @@ func TestRunPassesProtectedWorkflow(t *testing.T) {
 	}
 }
 
+func TestRunRequiresGuardrailValues(t *testing.T) {
+	root := t.TempDir()
+	workflow := "name: test\npermissions:\n  contents: write\nconcurrency:\n  group: test\n  cancel-in-progress: false\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps: []\n"
+	writeWorkflow(t, root, "test.yml", workflow)
+	report, err := Run(root, Ignore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotRules := map[string]bool{}
+	for _, finding := range report.Findings {
+		gotRules[finding.Rule] = true
+	}
+	if !gotRules["CF001"] || !gotRules["CF002"] {
+		t.Fatalf("want CF001 and CF002 for unsafe values, got %#v", report.Findings)
+	}
+}
+
 func TestRunIgnoresRulesAndPaths(t *testing.T) {
 	root := t.TempDir()
 	writeWorkflow(t, root, "main.yml", "name: test\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: []\n")
@@ -148,10 +166,11 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   guardrails:
+    permissions:
+      security-events: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps: []
