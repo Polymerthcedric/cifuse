@@ -28,10 +28,11 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   guardrails:
+    permissions:
+      security-events: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
